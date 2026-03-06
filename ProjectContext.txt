@@ -2,6 +2,16 @@
 
 --- Folder Structure ---
 app/
+  (admin)/
+    dashboard/
+      packages/
+      shipments/
+  (public)/
+    track/
+      [trackingId]/
+  actions/
+lib/
+prisma/
 public/
 
 
@@ -47,6 +57,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+--- app/(admin)/dashboard/page.tsx ---
+
+
+--- app/(public)/track/[trackingId]/page.tsx ---
+
+
+--- app/actions/package.actions.ts ---
+
+
+--- app/actions/shipment.actions.ts ---
 
 
 --- app/favicon.ico ---
@@ -207,6 +229,22 @@ const eslintConfig = defineConfig([
 export default eslintConfig;
 
 
+--- lib/prisma.ts ---
+// lib/prisma.ts
+import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+  });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
 --- next.config.ts ---
 import type { NextConfig } from "next";
 
@@ -229,6 +267,7 @@ export default nextConfig;
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "^7.4.2",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
@@ -240,6 +279,7 @@ export default nextConfig;
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "prisma": "^6.19.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
@@ -255,6 +295,76 @@ const config = {
 
 export default config;
 
+
+--- prisma/schema.prisma ---
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShippingMethod {
+  AIR
+  SEA
+}
+
+enum TransitStatus {
+  WAREHOUSE_RECEIVED // Arrived at foreign warehouse
+  IN_TRANSIT         // On the plane/ship
+  CUSTOMS            // Clearing customs in Douala/Yaoundé
+  READY_FOR_PICKUP   // Available at local office
+  DELIVERED          // Handed to customer
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  phone     String    @unique // WhatsApp/Local number
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  packages  Package[]
+}
+
+model Shipment {
+  id          String         @id @default(cuid())
+  reference   String         @unique // e.g., "AIR-APR-2024"
+  method      ShippingMethod @default(AIR)
+  departure   DateTime?
+  ratePerKg   Float          // e.g., 5000 (XAF)
+  status      TransitStatus  @default(WAREHOUSE_RECEIVED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  packages    Package[]
+}
+
+model Package {
+  id               String        @id @default(cuid())
+  trackingId       String        @unique // Internal ID (e.g., TRK-982374)
+  externalTracking String?       // Amazon/Alibaba tracking
+  description      String
+  weight           Float?        // In kilograms
+  priceXAF         Int?          // Calculated: weight * shipment.ratePerKg
+  status           TransitStatus @default(WAREHOUSE_RECEIVED)
+  isPaid           Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relations
+  customerId       String
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  
+  shipmentId       String?       
+  shipment         Shipment?     @relation(fields: [shipmentId], references: [id])
+
+  @@index([trackingId])
+}
 
 --- public/file.svg ---
 <svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>

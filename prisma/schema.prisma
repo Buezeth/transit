@@ -1,0 +1,68 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShippingMethod {
+  AIR
+  SEA
+}
+
+enum TransitStatus {
+  WAREHOUSE_RECEIVED // Arrived at foreign warehouse
+  IN_TRANSIT         // On the plane/ship
+  CUSTOMS            // Clearing customs in Douala/Yaoundé
+  READY_FOR_PICKUP   // Available at local office
+  DELIVERED          // Handed to customer
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  phone     String    @unique // WhatsApp/Local number
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  packages  Package[]
+}
+
+model Shipment {
+  id          String         @id @default(cuid())
+  reference   String         @unique // e.g., "AIR-APR-2024"
+  method      ShippingMethod @default(AIR)
+  departure   DateTime?
+  ratePerKg   Float          // e.g., 5000 (XAF)
+  status      TransitStatus  @default(WAREHOUSE_RECEIVED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  packages    Package[]
+}
+
+model Package {
+  id               String        @id @default(cuid())
+  trackingId       String        @unique // Internal ID (e.g., TRK-982374)
+  externalTracking String?       // Amazon/Alibaba tracking
+  description      String
+  weight           Float?        // In kilograms
+  priceXAF         Int?          // Calculated: weight * shipment.ratePerKg
+  status           TransitStatus @default(WAREHOUSE_RECEIVED)
+  isPaid           Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relations
+  customerId       String
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  
+  shipmentId       String?       
+  shipment         Shipment?     @relation(fields: [shipmentId], references: [id])
+
+  @@index([trackingId])
+}
