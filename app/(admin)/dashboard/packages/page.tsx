@@ -1,7 +1,8 @@
 // app/(admin)/dashboard/packages/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Plus, Package as PackageIcon, Search } from "lucide-react";
+import { Plus, Package as PackageIcon } from "lucide-react";
+import { MarkDeliveredButton } from "./components/mark-delivered-button";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function PackagesPage() {
               <th className="px-6 py-4 font-medium">Customer</th>
               <th className="px-6 py-4 font-medium">Description</th>
               <th className="px-6 py-4 font-medium">Category</th>
-              <th className="px-6 py-4 font-medium">Status</th>
+              <th className="px-6 py-4 font-medium">Status & Action</th>
               <th className="px-6 py-4 font-medium text-right">Price</th>
             </tr>
           </thead>
@@ -68,10 +69,17 @@ export default async function PackagesPage() {
                       {pkg.weight ? `${pkg.weight} KG` : `${pkg.volumeCBM} CBM`}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                  <td className="px-6 py-4 flex items-center gap-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                      pkg.status === 'DELIVERED' 
+                        ? 'bg-green-50 text-green-700 border-green-100' 
+                        : 'bg-blue-50 text-blue-700 border-blue-100'
+                    }`}>
                       {pkg.status.replace(/_/g, ' ')}
                     </span>
+                    {pkg.status !== 'DELIVERED' && (
+                      <MarkDeliveredButton id={pkg.id} />
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right font-medium text-gray-900">
                     {(pkg.priceXAF || 0).toLocaleString('fr-CM')} FCFA

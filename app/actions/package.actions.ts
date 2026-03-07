@@ -110,7 +110,29 @@ export async function createPackage(formData: FormData) {
     throw new Error("Failed to create package");
   }
 
+
+  
+
   revalidatePath('/dashboard/packages');
   revalidatePath('/dashboard'); // Update dashboard counters
   redirect('/dashboard/packages');
+}
+
+/**
+ * Marks a package as Delivered and Paid.
+ * This is the final step in the lifecycle.
+ */
+export async function markPackageDelivered(packageId: string) {
+  await prisma.package.update({
+    where: { id: packageId },
+    data: {
+      status: 'DELIVERED',
+      isPaid: true
+    }
+  });
+
+  revalidatePath('/dashboard/packages');
+  revalidatePath('/dashboard'); 
+  // We also revalidate the specific tracking page in case the user is refreshing it
+  // (We can't easily do that here without the tracking ID, but the cache strategy usually handles it)
 }

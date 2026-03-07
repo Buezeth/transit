@@ -1,5 +1,18 @@
 // CHANGELOG.md
 
+## [0.3.0] - Sprint 4: Public Tracking & Delivery - 2026-03-07
+### Added
+- **Public Landing Page:** Replaced the default Next.js template with a clean, search-focused landing page where users can enter their Tracking ID.
+- **Tracking Results Page:** Implemented a detailed public view (`/track/[id]`) featuring:
+  - **Visual Progress Stepper:** Displays the 5-stage journey (Received → Delivered).
+  - **Financial Summary:** clearly highlights the "Amount Due" and Payment Status (Pending vs. Paid).
+  - **Shipment Context:** Shows the parent container/flight reference if assigned.
+- **Delivery Workflow:** Added a "Mark as Delivered & Paid" quick-action button in the Admin Packages list to finalize the transaction lifecycle.
+- **404 Handling:** Added a user-friendly "Tracking ID Not Found" state with a quick return link.
+
+### Changed
+- **Package List UI:** Updated the Admin Packages table to include action buttons in the status column, allowing for one-click status resolution.
+
 ## [0.2.0] - Sprint 2 & 3: Intake & Logistics - 2026-03-07
 ### Added
 - **Package Intake System:** Built the "New Package" form with real-time price estimation based on the active tariff schedule.
@@ -18,7 +31,3 @@
 - **Dynamic Pricing Model:** Replaced hardcoded pricing with a dynamic `Tariff` table in the database to support varying shipping costs (Air vs. Sea, Normal vs. Battery, Cartons, etc.).
 - **Database Seeding:** Created `prisma/seed.ts` to automatically populate the database with the official July 2025 Cameroon Logistics pricing model.
 - **Prisma 7 Configuration:** Added `prisma.config.ts` to comply with the new Prisma 7 architectural standards for driver adapters and seeding.
-
-### Changed
-- Updated `schema.prisma` to include `PackageCategory` and `ShippingMethod` enums.
-- Removed `url` from `schema.prisma` datasource block in favor of environment variable injection via `prisma.config.ts`.
