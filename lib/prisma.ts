@@ -5,18 +5,27 @@ import { Pool } from "pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  pool: Pool | undefined; // We must cache the pool too!
 };
 
-// 1. Create a standard Postgres connection pool
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// 1. Reuse existing pool if available, otherwise create new
+const pool = globalForPrisma.pool ?? new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  // Optimization: Limit pool size in dev to prevent exhaustion
+  max: process.env.NODE_ENV === 'development' ? 5 : 10 
+});
+
 // 2. Wrap it in the Prisma 7 adapter
 const adapter = new PrismaPg(pool);
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter, // PRISMA 7 REQUIRES THIS
+    adapter, 
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+  globalForPrisma.pool = pool; // Store the pool globally
+}
