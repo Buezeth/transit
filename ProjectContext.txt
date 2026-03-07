@@ -66,7 +66,43 @@ next-env.d.ts
 
 
 --- app/actions/package.actions.ts ---
+// // app/actions/package.actions.ts
+import { prisma } from "@/lib/prisma";
+import { PackageCategory } from "@prisma/client";
 
+/**
+ * Dynamically calculates the base price using live database tariffs.
+ */
+export async function calculateBasePrice(
+  category: PackageCategory, 
+  measurement: number = 1 // Can be weight (KG), volume (CBM), or quantity (1)
+) {
+  // 1. Fetch the active tariff from the database
+  const tariff = await prisma.tariff.findUnique({
+    where: { category }
+  });
+
+  // 2. Handle missing or "Consult Direction" categories (e.g., Chemicals)
+  if (!tariff) {
+    return { 
+      price: 0, 
+      requiresOverride: true, 
+      message: "No tariff found. Consult direction for pricing." 
+    };
+  }
+
+  // 3. Calculate based on tariff rules
+  const finalPrice = tariff.isFlatRate 
+    ? tariff.unitPrice 
+    : tariff.unitPrice * measurement;
+
+  return {
+    price: finalPrice,
+    appliedRate: tariff.unitPrice,
+    requiresOverride: false,
+    message: "Success"
+  };
+}
 
 --- app/actions/shipment.actions.ts ---
 
@@ -231,7 +267,9 @@ export default eslintConfig;
 
 --- lib/prisma.ts ---
 // lib/prisma.ts
-import { PrismaClient } from "@prisma/client";
+// import { PrismaClient } from "@prisma/client";
+
+import { PrismaClient } from "@prisma/client/extension";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -279,7 +317,7 @@ export default nextConfig;
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "prisma": "^6.19.2",
+    "prisma": "^7.4.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
@@ -308,23 +346,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Global Status Enum
+enum TransitStatus {
+  WAREHOUSE_RECEIVED 
+  IN_TRANSIT         
+  CUSTOMS            
+  READY_FOR_PICKUP   
+  DELIVERED          
+}
+
+// Shipping Methods
 enum ShippingMethod {
   AIR
   SEA
 }
 
-enum TransitStatus {
-  WAREHOUSE_RECEIVED // Arrived at foreign warehouse
-  IN_TRANSIT         // On the plane/ship
-  CUSTOMS            // Clearing customs in Douala/Yaoundé
-  READY_FOR_PICKUP   // Available at local office
-  DELIVERED          // Handed to customer
+// Package Categories based on July 2025 Tariffs
+enum PackageCategory {
+  // Air Categories
+  AIR_NORMAL
+  AIR_BATTERY_LIQUID_POWDER
+  
+  // Sea Categories
+  SEA_NORMAL
+  SEA_CARTON
+  SEA_BIG_BALE
+  SEA_MACHINE
+  SEA_CHEMICAL // Requires management override
 }
 
 model Customer {
   id        String    @id @default(cuid())
   name      String
-  phone     String    @unique // WhatsApp/Local number
+  phone     String    @unique // WhatsApp number
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -336,7 +390,6 @@ model Shipment {
   reference   String         @unique // e.g., "AIR-APR-2024"
   method      ShippingMethod @default(AIR)
   departure   DateTime?
-  ratePerKg   Float          // e.g., 5000 (XAF)
   status      TransitStatus  @default(WAREHOUSE_RECEIVED)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -345,25 +398,47 @@ model Shipment {
 }
 
 model Package {
-  id               String        @id @default(cuid())
-  trackingId       String        @unique // Internal ID (e.g., TRK-982374)
-  externalTracking String?       // Amazon/Alibaba tracking
+  id               String          @id @default(cuid())
+  trackingId       String          @unique // Internal ID for public tracking (e.g., TRK-982374)
+  externalTracking String?         // Original Amazon/Alibaba tracking
   description      String
-  weight           Float?        // In kilograms
-  priceXAF         Int?          // Calculated: weight * shipment.ratePerKg
-  status           TransitStatus @default(WAREHOUSE_RECEIVED)
-  isPaid           Boolean       @default(false)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  
+  // New Tariff & Measurement Fields
+  category         PackageCategory @default(AIR_NORMAL)
+  weight           Float?          // In kilograms (Primary for AIR)
+  volumeCBM        Float?          // In cubic meters (Primary for SEA)
+  
+  // Pricing
+  appliedRate      Int?            // The rate applied at creation (e.g., 8500, 350000)
+  priceXAF         Int?            // Final calculated price (can be manually overridden)
+  isDiscounted     Boolean         @default(false) // Flags if management applied a custom rate/discount
+  
+  status           TransitStatus   @default(WAREHOUSE_RECEIVED)
+  isPaid           Boolean         @default(false)
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   // Relations
   customerId       String
-  customer         Customer      @relation(fields: [customerId], references: [id])
+  customer         Customer        @relation(fields: [customerId], references: [id])
   
   shipmentId       String?       
-  shipment         Shipment?     @relation(fields: [shipmentId], references: [id])
+  shipment         Shipment?       @relation(fields: [shipmentId], references: [id])
 
-  @@index([trackingId])
+  @@index([trackingId]) 
+}
+
+// New Model to hold dynamic pricing
+model Tariff {
+  id          String          @id @default(cuid())
+  category    PackageCategory @unique // e.g., AIR_NORMAL
+  method      ShippingMethod  // AIR or SEA
+  unitPrice   Int             // e.g., 8500, 350000, 360000
+  unitType    String          // "KG", "CBM", "UNIT" (for flat cartons/bales)
+  isFlatRate  Boolean         @default(false) // If true, ignores weight/volume
+  isActive    Boolean         @default(true)
+  updatedAt   DateTime        @updatedAt
 }
 
 --- public/file.svg ---
