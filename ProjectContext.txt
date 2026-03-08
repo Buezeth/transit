@@ -5,8 +5,12 @@ app/
   (admin)/
     dashboard/
       packages/
+        components/
+        new/
       settings/
       shipments/
+        [id]/
+          components/
   (public)/
     track/
       [trackingId]/
@@ -59,6 +63,393 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+
+--- app/(admin)/dashboard/packages/components/mark-delivered-button.tsx ---
+// app/(admin)/dashboard/packages/components/mark-delivered-button.tsx
+'use client';
+
+import { markPackageDelivered } from "@/app/actions/package.actions";
+import { CheckCheck, Loader2 } from "lucide-react";
+import { useTransition } from "react";
+
+export function MarkDeliveredButton({ id }: { id: string }) {
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <button
+      onClick={() => startTransition(() => markPackageDelivered(id))}
+      disabled={isPending}
+      className="text-gray-400 hover:text-green-600 transition-colors p-1 rounded-md hover:bg-green-50"
+      title="Mark as Delivered & Paid"
+    >
+      {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCheck className="w-5 h-5" />}
+    </button>
+  );
+}
+
+--- app/(admin)/dashboard/packages/components/package-form.tsx ---
+// app/(admin)/dashboard/packages/components/package-form.tsx
+'use client';
+
+import { useState, useEffect, useTransition } from 'react';
+import { PackageCategory, ShippingMethod } from "@prisma/client";
+import { calculateBasePrice, getCustomerByPhone, createPackage } from "@/app/actions/package.actions";
+import { Loader2, Calculator, User, Box, AlertCircle } from "lucide-react";
+
+export function PackageForm() {
+  const [isPending, startTransition] = useTransition();
+  
+  // Form State
+  const [method, setMethod] = useState<ShippingMethod>('AIR');
+  const [category, setCategory] = useState<PackageCategory>('AIR_NORMAL');
+  const [measurement, setMeasurement] = useState<number>(1); // Weight (kg) or Volume (cbm)
+  const [price, setPrice] = useState<number>(0);
+  const [isOverride, setIsOverride] = useState(false);
+  
+  // Customer Lookup State
+  const [phone, setPhone] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+
+  // Constants for dropdowns
+  const AIR_CATEGORIES = ['AIR_NORMAL', 'AIR_BATTERY_LIQUID_POWDER'];
+  const SEA_CATEGORIES = ['SEA_NORMAL', 'SEA_CARTON', 'SEA_BIG_BALE', 'SEA_MACHINE', 'SEA_CHEMICAL'];
+
+  // Effect: Auto-calculate price when inputs change
+  useEffect(() => {
+    if (!isOverride) {
+      const fetchPrice = async () => {
+        const result = await calculateBasePrice(category, measurement);
+        setPrice(result.price);
+      };
+      fetchPrice();
+    }
+  }, [category, measurement, isOverride]);
+
+  // Handler: Customer Phone Lookup
+  const handlePhoneBlur = async () => {
+    if (phone.length < 9) return;
+    setIsCheckingPhone(true);
+    const customer = await getCustomerByPhone(phone);
+    if (customer) {
+      setCustomerName(customer.name);
+    }
+    setIsCheckingPhone(false);
+  };
+
+  // Handler: Method Toggle (Resets category to first available)
+  const handleMethodChange = (newMethod: ShippingMethod) => {
+    setMethod(newMethod);
+    setCategory(newMethod === 'AIR' ? 'AIR_NORMAL' : 'SEA_NORMAL');
+    setMeasurement(1);
+    setIsOverride(false);
+  };
+
+  return (
+    <form action={createPackage} className="space-y-8 max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-sm border border-gray-200">
+      
+      {/* 1. Customer Section */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <User className="w-5 h-5 text-blue-600" /> Customer Details
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+            <div className="relative">
+              <input 
+                name="phone"
+                type="text" 
+                required
+                placeholder="6XX XXX XXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onBlur={handlePhoneBlur}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              {isCheckingPhone && <Loader2 className="w-4 h-4 absolute right-3 top-3 animate-spin text-gray-400" />}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input 
+              name="name"
+              type="text" 
+              required
+              placeholder="Enter name"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      <hr className="border-gray-100" />
+
+      {/* 2. Package Details */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <Box className="w-5 h-5 text-blue-600" /> Package Info
+        </h3>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tracking ID (Internal)</label>
+          <input 
+            name="trackingId"
+            type="text" 
+            required
+            defaultValue={`TRK-${Math.floor(100000 + Math.random() * 900000)}`} // Simple auto-gen
+            className="w-full p-2 bg-gray-50 border border-gray-300 rounded-md font-mono text-gray-600"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <input 
+            name="description"
+            type="text" 
+            required
+            placeholder="e.g. 2 Cartons of Shoes"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+
+        {/* Shipping Method Toggle */}
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="radio" 
+              name="method" 
+              value="AIR" 
+              checked={method === 'AIR'} 
+              onChange={() => handleMethodChange('AIR')}
+              className="w-4 h-4 text-blue-600"
+            />
+            <span className="font-medium text-gray-700">Air Freight</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="radio" 
+              name="method" 
+              value="SEA" 
+              checked={method === 'SEA'} 
+              onChange={() => handleMethodChange('SEA')}
+              className="w-4 h-4 text-blue-600"
+            />
+            <span className="font-medium text-gray-700">Sea Freight</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <select 
+              name="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as PackageCategory)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              {(method === 'AIR' ? AIR_CATEGORIES : SEA_CATEGORIES).map(cat => (
+                <option key={cat} value={cat}>{cat.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {method === 'AIR' ? 'Weight (KG)' : 'Volume (CBM)'}
+            </label>
+            <input 
+              name={method === 'AIR' ? 'weight' : 'volumeCBM'}
+              type="number" 
+              step="0.01"
+              min="0.1"
+              required
+              value={measurement}
+              onChange={(e) => setMeasurement(parseFloat(e.target.value) || 0)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      <hr className="border-gray-100" />
+
+      {/* 3. Pricing Section */}
+      <div className="space-y-4 bg-gray-50 p-4 rounded-md">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <Calculator className="w-5 h-5 text-blue-600" /> Pricing
+        </h3>
+
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={isOverride}
+              onChange={(e) => setIsOverride(e.target.checked)}
+              className="rounded text-blue-600 focus:ring-blue-500" 
+            />
+            <span className="text-sm font-medium text-gray-700">Management Override</span>
+          </label>
+          
+          {isOverride && (
+            <span className="text-xs text-orange-600 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" /> Custom pricing enabled
+            </span>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Total Price (FCFA)</label>
+          <input 
+            name="priceXAF"
+            type="number" 
+            value={price}
+            readOnly={!isOverride}
+            onChange={(e) => setPrice(parseInt(e.target.value) || 0)}
+            className={`w-full p-3 text-lg font-bold rounded-md border ${
+              isOverride 
+                ? 'bg-white border-orange-300 text-orange-700 focus:ring-orange-500' 
+                : 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
+            }`}
+          />
+        </div>
+      </div>
+
+      <button 
+        type="submit" 
+        disabled={isPending}
+        className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex justify-center"
+      >
+        {isPending ? <Loader2 className="animate-spin" /> : "Receive Package"}
+      </button>
+
+    </form>
+  );
+}
+
+--- app/(admin)/dashboard/packages/new/page.tsx ---
+// app/(admin)/dashboard/packages/new/page.tsx
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { PackageForm } from "../components/package-form";
+
+export default function NewPackagePage() {
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <div className="mb-6 flex items-center gap-4">
+        <Link 
+          href="/dashboard/packages" 
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900">Receive New Package</h1>
+      </div>
+
+      <PackageForm />
+    </div>
+  );
+}
+
+--- app/(admin)/dashboard/packages/page.tsx ---
+// app/(admin)/dashboard/packages/page.tsx
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { Plus, Package as PackageIcon } from "lucide-react";
+import { MarkDeliveredButton } from "./components/mark-delivered-button";
+
+export const dynamic = "force-dynamic";
+
+export default async function PackagesPage() {
+  const packages = await prisma.package.findMany({
+    include: {
+      customer: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+
+  return (
+    <div className="p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Packages</h1>
+        <Link 
+          href="/dashboard/packages/new" 
+          className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" /> Receive Package
+        </Link>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <table className="w-full text-left text-sm text-gray-600">
+          <thead className="bg-gray-50 border-b border-gray-200 text-gray-900">
+            <tr>
+              <th className="px-6 py-4 font-medium">Tracking ID</th>
+              <th className="px-6 py-4 font-medium">Customer</th>
+              <th className="px-6 py-4 font-medium">Description</th>
+              <th className="px-6 py-4 font-medium">Category</th>
+              <th className="px-6 py-4 font-medium">Status & Action</th>
+              <th className="px-6 py-4 font-medium text-right">Price</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {packages.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                  <div className="flex flex-col items-center gap-2">
+                    <PackageIcon className="w-8 h-8 opacity-20" />
+                    <p>No packages found. Receive your first one.</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              packages.map((pkg) => (
+                <tr key={pkg.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 font-mono font-medium text-blue-600">
+                    {pkg.trackingId}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-gray-900">{pkg.customer.name}</div>
+                    <div className="text-xs text-gray-400">{pkg.customer.phone}</div>
+                  </td>
+                  <td className="px-6 py-4">{pkg.description}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 bg-gray-100 rounded text-xs">
+                      {pkg.category.replace(/_/g, ' ')}
+                    </span>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {pkg.weight ? `${pkg.weight} KG` : `${pkg.volumeCBM} CBM`}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 flex items-center gap-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                      pkg.status === 'DELIVERED' 
+                        ? 'bg-green-50 text-green-700 border-green-100' 
+                        : 'bg-blue-50 text-blue-700 border-blue-100'
+                    }`}>
+                      {pkg.status.replace(/_/g, ' ')}
+                    </span>
+                    {pkg.status !== 'DELIVERED' && (
+                      <MarkDeliveredButton id={pkg.id} />
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right font-medium text-gray-900">
+                    {(pkg.priceXAF || 0).toLocaleString('fr-CM')} FCFA
+                    {pkg.isDiscounted && <span className="text-orange-500 ml-1 text-xs">*</span>}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 --- app/(admin)/dashboard/page.tsx ---
 // app/(admin)/dashboard/page.tsx
@@ -147,6 +538,300 @@ export default async function SettingsPage() {
   );
 }
 
+--- app/(admin)/dashboard/shipments/[id]/components/manifest-manager.tsx ---
+// app/(admin)/dashboard/shipments/[id]/components/manifest-manager.tsx
+'use client';
+
+import { TransitStatus } from "@prisma/client";
+import { updateShipmentStatus, assignPackageToShipment, removePackageFromShipment } from "@/app/actions/shipment.actions";
+import { PackageOpen, X, ArrowRight, Truck, CheckCircle, Anchor } from "lucide-react";
+import { useTransition } from "react";
+
+// Minimal type definition for what we pass from the server
+type SimplePackage = {
+  id: string;
+  trackingId: string;
+  description: string;
+  weight: number | null;
+  volumeCBM: number | null;
+  customer: { name: string };
+};
+
+interface Props {
+  shipmentId: string;
+  shipmentStatus: TransitStatus;
+  currentPackages: SimplePackage[];
+  availablePackages: SimplePackage[];
+}
+
+export function ManifestManager({ shipmentId, shipmentStatus, currentPackages, availablePackages }: Props) {
+  const [isPending, startTransition] = useTransition();
+
+  const handleStatusChange = (newStatus: string) => {
+    startTransition(() => updateShipmentStatus(shipmentId, newStatus as TransitStatus));
+  };
+
+  const handleAssign = (pkgId: string) => {
+    startTransition(() => assignPackageToShipment(shipmentId, pkgId));
+  };
+
+  const handleRemove = (pkgId: string) => {
+    startTransition(() => removePackageFromShipment(pkgId, shipmentId));
+  };
+
+  const statusOptions = Object.values(TransitStatus);
+
+  return (
+    <div className="space-y-8">
+      {/* 1. Status Controller */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment Status</h3>
+        <div className="flex flex-wrap gap-2">
+          {statusOptions.map((status) => (
+            <button
+              key={status}
+              disabled={isPending}
+              onClick={() => handleStatusChange(status)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                shipmentStatus === status
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {status.replace(/_/g, ' ')}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-gray-400">
+          * Changing status will update all {currentPackages.length} packages in this shipment.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* 2. Current Manifest (LEFT) */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-[600px]">
+          <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Anchor className="w-4 h-4" /> Manifest ({currentPackages.length})
+            </h3>
+            <span className="text-xs text-gray-500 font-mono">
+              Total: {currentPackages.reduce((acc, p) => acc + (p.weight || p.volumeCBM || 0), 0).toFixed(2)} units
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {currentPackages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                <PackageOpen className="w-8 h-8 opacity-20 mb-2" />
+                <p>Manifest is empty.</p>
+              </div>
+            ) : (
+              currentPackages.map(pkg => (
+                <div key={pkg.id} className="p-3 border border-gray-100 rounded bg-white hover:border-red-200 group transition-colors flex justify-between items-center">
+                  <div>
+                    <div className="font-mono text-xs text-blue-600 font-bold">{pkg.trackingId}</div>
+                    <div className="text-sm text-gray-900">{pkg.description}</div>
+                    <div className="text-xs text-gray-500">{pkg.customer.name} • {pkg.weight ? `${pkg.weight}kg` : `${pkg.volumeCBM}cbm`}</div>
+                  </div>
+                  <button 
+                    onClick={() => handleRemove(pkg.id)}
+                    className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Remove from shipment"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* 3. Available Pool (RIGHT) */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-[600px]">
+          <div className="p-4 border-b border-gray-100 bg-gray-50">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <PackageOpen className="w-4 h-4" /> Unassigned Packages
+            </h3>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {availablePackages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                <CheckCircle className="w-8 h-8 opacity-20 mb-2" />
+                <p>No unassigned packages found.</p>
+              </div>
+            ) : (
+              availablePackages.map(pkg => (
+                <div key={pkg.id} className="p-3 border border-gray-100 rounded bg-white hover:border-green-200 group transition-colors flex justify-between items-center">
+                  <div>
+                    <div className="font-mono text-xs text-gray-500">{pkg.trackingId}</div>
+                    <div className="text-sm text-gray-900">{pkg.description}</div>
+                    <div className="text-xs text-gray-500">{pkg.customer.name}</div>
+                  </div>
+                  <button 
+                    onClick={() => handleAssign(pkg.id)}
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                    title="Add to shipment"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- app/(admin)/dashboard/shipments/[id]/page.tsx ---
+// app/(admin)/dashboard/shipments/[id]/page.tsx
+import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import { ManifestManager } from "./components/manifest-manager";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+
+export const dynamic = "force-dynamic";
+
+export default async function ShipmentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  // 1. Fetch Shipment and its current packages
+  const shipment = await prisma.shipment.findUnique({
+    where: { id },
+    include: {
+      packages: {
+        include: { customer: true }
+      }
+    }
+  });
+
+  if (!shipment) return notFound();
+
+  // 2. Fetch "The Pool" (Unassigned packages matching the method)
+  // Logic: Must be unassigned (shipmentId: null) AND match method (Air vs Sea)
+  const availablePackages = await prisma.package.findMany({
+    where: {
+      shipmentId: null,
+      category: shipment.method === 'AIR' 
+        ? { in: ['AIR_NORMAL', 'AIR_BATTERY_LIQUID_POWDER'] }
+        : { in: ['SEA_NORMAL', 'SEA_CARTON', 'SEA_BIG_BALE', 'SEA_MACHINE', 'SEA_CHEMICAL'] }
+    },
+    include: { customer: true },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return (
+    <div className="p-8">
+      <div className="mb-6 flex items-center gap-4">
+        <Link 
+          href="/dashboard/shipments" 
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{shipment.reference}</h1>
+          <p className="text-sm text-gray-500">{shipment.method} Freight • Created {shipment.createdAt.toLocaleDateString()}</p>
+        </div>
+      </div>
+
+      <ManifestManager 
+        shipmentId={shipment.id}
+        shipmentStatus={shipment.status}
+        currentPackages={shipment.packages}
+        availablePackages={availablePackages}
+      />
+    </div>
+  );
+}
+
+--- app/(admin)/dashboard/shipments/page.tsx ---
+// app/(admin)/dashboard/shipments/page.tsx
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { Plus, Ship, Plane, ArrowRight } from "lucide-react";
+import { createShipment } from "@/app/actions/shipment.actions";
+
+export const dynamic = "force-dynamic";
+
+export default async function ShipmentsPage() {
+  const shipments = await prisma.shipment.findMany({
+    include: {
+      _count: {
+        select: { packages: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return (
+    <div className="p-8">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Shipments</h1>
+        
+        <div className="flex gap-2">
+          {/* Quick Create Buttons */}
+          <form action={createShipment}>
+            <input type="hidden" name="method" value="AIR" />
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2 text-sm font-medium">
+              <Plus className="w-4 h-4" /> New Air Shipment
+            </button>
+          </form>
+          <form action={createShipment}>
+            <input type="hidden" name="method" value="SEA" />
+            <button className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700 flex items-center gap-2 text-sm font-medium">
+              <Plus className="w-4 h-4" /> New Sea Shipment
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {shipments.map((shipment) => (
+          <Link 
+            key={shipment.id} 
+            href={`/dashboard/shipments/${shipment.id}`}
+            className="block group"
+          >
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:border-blue-300 transition-all">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${shipment.method === 'AIR' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                    {shipment.method === 'AIR' ? <Plane className="w-5 h-5" /> : <Ship className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">{shipment.reference}</h3>
+                    <p className="text-xs text-gray-500">Created {shipment.createdAt.toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <span className={`px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600`}>
+                  {shipment.status.replace(/_/g, ' ')}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 text-sm">
+                <span className="text-gray-500">
+                  {shipment._count.packages} Packages
+                </span>
+                <span className="flex items-center text-blue-600 font-medium group-hover:translate-x-1 transition-transform">
+                  Manage <ArrowRight className="w-4 h-4 ml-1" />
+                </span>
+              </div>
+            </div>
+          </Link>
+        ))}
+        
+        {shipments.length === 0 && (
+          <div className="col-span-full text-center py-12 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+            <p>No active shipments. Create one to get started.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 --- app/(admin)/layout.tsx ---
 // app/(admin)/layout.tsx
 import Link from "next/link";
@@ -185,35 +870,176 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 }
 
 --- app/(public)/track/[trackingId]/page.tsx ---
+// app/(public)/track/[trackingId]/page.tsx
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { ArrowLeft, CheckCircle2, Clock, MapPin, Package, Truck, Home } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
+export default async function TrackingPage({ params }: { params: Promise<{ trackingId: string }> }) {
+  const { trackingId } = await params;
+
+  const pkg = await prisma.package.findUnique({
+    where: { trackingId },
+    include: { shipment: true }
+  });
+
+  if (!pkg) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-300 mb-4">404</h1>
+          <p className="text-gray-600 text-lg mb-8">Tracking ID <span className="font-mono font-bold text-black">{trackingId}</span> not found.</p>
+          <Link href="/" className="text-blue-600 hover:underline flex items-center justify-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Go Back
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Status Stepper Logic
+  const steps = [
+    { id: 'WAREHOUSE_RECEIVED', label: 'Received', icon: Package },
+    { id: 'IN_TRANSIT', label: 'In Transit', icon: Truck },
+    { id: 'CUSTOMS', label: 'Customs', icon: MapPin },
+    { id: 'READY_FOR_PICKUP', label: 'Ready', icon: CheckCircle2 },
+    { id: 'DELIVERED', label: 'Delivered', icon: Home },
+  ];
+
+  const currentStepIndex = steps.findIndex(s => s.id === pkg.status);
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Link href="/" className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-100 text-gray-600">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Tracking Results</h1>
+            <p className="text-sm text-gray-500 font-mono">{pkg.trackingId}</p>
+          </div>
+        </div>
+
+        {/* Main Status Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-6 bg-blue-600 text-white">
+            <h2 className="text-lg font-medium opacity-90">Current Status</h2>
+            <p className="text-3xl font-bold mt-1">{pkg.status.replace(/_/g, ' ')}</p>
+            {pkg.shipment && (
+              <p className="mt-2 text-blue-100 text-sm flex items-center gap-2">
+                <Truck className="w-4 h-4" /> Shipment Ref: {pkg.shipment.reference}
+              </p>
+            )}
+          </div>
+
+          <div className="p-6">
+            {/* Stepper */}
+            <div className="relative flex justify-between">
+              {/* Progress Line */}
+              <div className="absolute top-4 left-0 w-full h-1 bg-gray-100 -z-0"></div>
+              <div 
+                className="absolute top-4 left-0 h-1 bg-blue-600 -z-0 transition-all duration-500"
+                style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+              ></div>
+
+              {steps.map((step, idx) => {
+                const isActive = idx <= currentStepIndex;
+                const isCurrent = idx === currentStepIndex;
+                const Icon = step.icon;
+                
+                return (
+                  <div key={step.id} className="flex flex-col items-center z-10 relative group">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors ${
+                      isActive ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-300'
+                    }`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className={`text-[10px] md:text-xs font-medium mt-2 absolute -bottom-6 w-20 text-center ${
+                      isCurrent ? 'text-blue-600' : 'text-gray-400'
+                    }`}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="mt-12 pt-6 border-t border-gray-100 grid grid-cols-2 gap-6">
+              <div>
+                <span className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Description</span>
+                <p className="font-medium text-gray-900">{pkg.description}</p>
+              </div>
+              <div>
+                <span className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Weight / Vol</span>
+                <p className="font-medium text-gray-900">
+                  {pkg.weight ? `${pkg.weight} KG` : `${pkg.volumeCBM} CBM`}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <h3 className="text-gray-500 font-medium text-sm uppercase">Total Amount Due</h3>
+            <p className="text-3xl font-bold text-gray-900">
+              {(pkg.priceXAF || 0).toLocaleString('fr-CM')} <span className="text-lg text-gray-500">FCFA</span>
+            </p>
+          </div>
+          
+          <div className={`px-4 py-2 rounded-full font-bold flex items-center gap-2 ${
+            pkg.isPaid 
+              ? 'bg-green-100 text-green-700' 
+              : 'bg-orange-100 text-orange-700'
+          }`}>
+            {pkg.isPaid ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+            {pkg.isPaid ? "PAID" : "PAYMENT PENDING"}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
 
 --- app/actions/package.actions.ts ---
-// // app/actions/package.actions.ts
+// app/actions/package.actions.ts
+'use server';
+
 import { prisma } from "@/lib/prisma";
-import { PackageCategory } from "@prisma/client";
+import { PackageCategory, ShippingMethod, TransitStatus } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 /**
- * Dynamically calculates the base price using live database tariffs.
+ * Calculates price based on category and measurement.
+ * Used by the frontend for real-time preview.
  */
 export async function calculateBasePrice(
   category: PackageCategory, 
-  measurement: number = 1 // Can be weight (KG), volume (CBM), or quantity (1)
+  measurement: number = 1
 ) {
-  // 1. Fetch the active tariff from the database
+  if (!category) return { price: 0, appliedRate: 0, message: "Select a category" };
+
   const tariff = await prisma.tariff.findUnique({
     where: { category }
   });
 
-  // 2. Handle missing or "Consult Direction" categories (e.g., Chemicals)
   if (!tariff) {
     return { 
       price: 0, 
+      appliedRate: 0,
       requiresOverride: true, 
-      message: "No tariff found. Consult direction for pricing." 
+      message: "No tariff found. Consult direction." 
     };
   }
 
-  // 3. Calculate based on tariff rules
   const finalPrice = tariff.isFlatRate 
     ? tariff.unitPrice 
     : tariff.unitPrice * measurement;
@@ -226,8 +1052,174 @@ export async function calculateBasePrice(
   };
 }
 
---- app/actions/shipment.actions.ts ---
+/**
+ * Looks up a customer by phone number.
+ */
+export async function getCustomerByPhone(phone: string) {
+  return await prisma.customer.findUnique({
+    where: { phone }
+  });
+}
 
+/**
+ * Main Action: Creates a customer (if needed) and the package.
+ */
+export async function createPackage(formData: FormData) {
+  const phone = formData.get('phone') as string;
+  const name = formData.get('name') as string;
+  const description = formData.get('description') as string;
+  const trackingId = formData.get('trackingId') as string;
+  const category = formData.get('category') as PackageCategory;
+  const method = formData.get('method') as ShippingMethod;
+  
+  // Numeric parsing
+  const weightRaw = formData.get('weight');
+  const volumeRaw = formData.get('volumeCBM');
+  const priceRaw = formData.get('priceXAF');
+
+  const weight = weightRaw ? parseFloat(weightRaw.toString()) : null;
+  const volumeCBM = volumeRaw ? parseFloat(volumeRaw.toString()) : null;
+  const priceXAF = priceRaw ? parseInt(priceRaw.toString()) : 0;
+  
+  // Check override/discount status
+  // We need to fetch the base rate again to determine if 'isDiscounted' should be true
+  // (i.e. if the user manually changed the price from the calculation)
+  const { price: calculatedPrice, appliedRate } = await calculateBasePrice(
+    category, 
+    method === 'AIR' ? (weight || 0) : (volumeCBM || 1)
+  );
+
+  const isDiscounted = priceXAF !== calculatedPrice;
+
+  try {
+    // 1. Find or Create Customer
+    const customer = await prisma.customer.upsert({
+      where: { phone },
+      update: { name }, // Update name if they changed it
+      create: { phone, name }
+    });
+
+    // 2. Create Package
+    await prisma.package.create({
+      data: {
+        trackingId,
+        description,
+        category,
+        weight,
+        volumeCBM,
+        appliedRate,
+        priceXAF,
+        isDiscounted,
+        status: TransitStatus.WAREHOUSE_RECEIVED,
+        customerId: customer.id,
+        // Optional: Manual shipment assignment could happen here, but we'll leave it null for now
+      }
+    });
+
+  } catch (error) {
+    console.error("Failed to create package:", error);
+    throw new Error("Failed to create package");
+  }
+
+
+  
+
+  revalidatePath('/dashboard/packages');
+  revalidatePath('/dashboard'); // Update dashboard counters
+  redirect('/dashboard/packages');
+}
+
+/**
+ * Marks a package as Delivered and Paid.
+ * This is the final step in the lifecycle.
+ */
+export async function markPackageDelivered(packageId: string) {
+  await prisma.package.update({
+    where: { id: packageId },
+    data: {
+      status: 'DELIVERED',
+      isPaid: true
+    }
+  });
+
+  revalidatePath('/dashboard/packages');
+  revalidatePath('/dashboard'); 
+  // We also revalidate the specific tracking page in case the user is refreshing it
+  // (We can't easily do that here without the tracking ID, but the cache strategy usually handles it)
+}
+
+--- app/actions/shipment.actions.ts ---
+// app/actions/shipment.actions.ts
+'use server';
+
+import { prisma } from "@/lib/prisma";
+import { ShippingMethod, TransitStatus } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+/**
+ * Creates a new empty Shipment (Manifest).
+ * Generates a readable reference ID (e.g., AIR-2603-X9Y).
+ */
+export async function createShipment(formData: FormData) {
+  const method = formData.get('method') as ShippingMethod;
+  const dateStr = new Date().toISOString().slice(2, 7).replace('-', ''); // 2603 (YearMonth)
+  const randomSuffix = Math.random().toString(36).substring(2, 5).toUpperCase();
+  const reference = `${method}-${dateStr}-${randomSuffix}`;
+
+  await prisma.shipment.create({
+    data: {
+      reference,
+      method,
+      status: TransitStatus.WAREHOUSE_RECEIVED,
+    }
+  });
+
+  revalidatePath('/dashboard/shipments');
+}
+
+/**
+ * Updates the shipment status AND cascades it to all contained packages.
+ */
+export async function updateShipmentStatus(shipmentId: string, newStatus: TransitStatus) {
+  // Transaction ensures both update or neither does
+  await prisma.$transaction([
+    // 1. Update Shipment
+    prisma.shipment.update({
+      where: { id: shipmentId },
+      data: { status: newStatus }
+    }),
+    // 2. Cascade to Packages
+    prisma.package.updateMany({
+      where: { shipmentId },
+      data: { status: newStatus }
+    })
+  ]);
+
+  revalidatePath(`/dashboard/shipments/${shipmentId}`);
+}
+
+/**
+ * Assigns a package to a shipment.
+ */
+export async function assignPackageToShipment(shipmentId: string, packageId: string) {
+  await prisma.package.update({
+    where: { id: packageId },
+    data: { shipmentId }
+  });
+  revalidatePath(`/dashboard/shipments/${shipmentId}`);
+}
+
+/**
+ * Removes a package from a shipment (returns to pool).
+ */
+export async function removePackageFromShipment(packageId: string, shipmentId: string) { // shipmentId needed for revalidation
+  await prisma.package.update({
+    where: { id: packageId },
+    data: { shipmentId: null }
+  });
+  revalidatePath(`/dashboard/shipments/${shipmentId}`);
+}
 
 --- app/favicon.ico ---
 [Binary file detected - content excluded]
@@ -299,75 +1291,86 @@ export default function RootLayout({
 
 
 --- app/page.tsx ---
-import Image from "next/image";
+// app/page.tsx
+import { PackageSearch } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default function Home() {
+  
+  async function trackPackage(formData: FormData) {
+    'use server';
+    const trackingId = formData.get('trackingId') as string;
+    if (trackingId) {
+      redirect(`/track/${trackingId.trim()}`);
+    }
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-gray-100 text-center">
+        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <PackageSearch className="w-8 h-8" />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Transitor Track</h1>
+        <p className="text-gray-500 mb-8">Enter your tracking number to see the current status of your shipment.</p>
+
+        <form action={trackPackage} className="space-y-4">
+          <input 
+            name="trackingId"
+            type="text" 
+            placeholder="TRK-..." 
+            className="w-full p-4 text-center text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all uppercase placeholder:normal-case"
+            required
+          />
+          <button 
+            type="submit" 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            Track Package
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-gray-100 text-sm text-gray-400">
+          <Link href="/dashboard" className="hover:text-gray-600">Admin Login</Link>
         </div>
-      </main>
+      </div>
+      
+      <p className="mt-8 text-xs text-gray-400">
+        &copy; 2026 Cameroon Logistics Services
+      </p>
     </div>
   );
 }
 
-
 --- CHANGELOG.md ---
-# CHANGELOG.md
+// CHANGELOG.md
+
+## [0.3.0] - Sprint 4: Public Tracking & Delivery - 2026-03-07
+### Added
+- **Public Landing Page:** Replaced the default Next.js template with a clean, search-focused landing page where users can enter their Tracking ID.
+- **Tracking Results Page:** Implemented a detailed public view (`/track/[id]`) featuring:
+  - **Visual Progress Stepper:** Displays the 5-stage journey (Received → Delivered).
+  - **Financial Summary:** clearly highlights the "Amount Due" and Payment Status (Pending vs. Paid).
+  - **Shipment Context:** Shows the parent container/flight reference if assigned.
+- **Delivery Workflow:** Added a "Mark as Delivered & Paid" quick-action button in the Admin Packages list to finalize the transaction lifecycle.
+- **404 Handling:** Added a user-friendly "Tracking ID Not Found" state with a quick return link.
+
+### Changed
+- **Package List UI:** Updated the Admin Packages table to include action buttons in the status column, allowing for one-click status resolution.
+
+## [0.2.0] - Sprint 2 & 3: Intake & Logistics - 2026-03-07
+### Added
+- **Package Intake System:** Built the "New Package" form with real-time price estimation based on the active tariff schedule.
+- **Customer Lookup:** Integrated automatic customer detection by phone number during package entry; creates new customer records on the fly.
+- **Shipment Management:** Added the ability to create "Air" or "Sea" manifests (Shipments) with auto-generated reference IDs (e.g., `AIR-2603-X9Y`).
+- **Manifest Manager:** Created a visual interface to assign unassigned packages to specific shipments and remove them if needed.
+- **Status Cascading:** Implemented logic where updating a Shipment's status (e.g., to `IN_TRANSIT`) automatically updates the status of all contained packages via a database transaction.
+- **Admin UI:** Added list views for Packages and Shipments with filtering and summary statistics.
+
+### Fixed
+- **Database Connection Pooling:** Modified `lib/prisma.ts` to cache the PostgreSQL connection pool (`pg.Pool`) alongside the Prisma Client. This prevents connection exhaustion errors ("Unable to start a transaction") during Next.js Hot Module Replacement (HMR).
 
 ## [0.1.0] - Sprint 1 Foundation - 2026-03-07
 ### Added
@@ -375,10 +1378,6 @@ export default function Home() {
 - **Dynamic Pricing Model:** Replaced hardcoded pricing with a dynamic `Tariff` table in the database to support varying shipping costs (Air vs. Sea, Normal vs. Battery, Cartons, etc.).
 - **Database Seeding:** Created `prisma/seed.ts` to automatically populate the database with the official July 2025 Cameroon Logistics pricing model.
 - **Prisma 7 Configuration:** Added `prisma.config.ts` to comply with the new Prisma 7 architectural standards for driver adapters and seeding.
-
-### Changed
-- Updated `schema.prisma` to include `PackageCategory` and `ShippingMethod` enums.
-- Removed `url` from `schema.prisma` datasource block in favor of environment variable injection via `prisma.config.ts`.
 
 --- eslint.config.mjs ---
 import { defineConfig, globalIgnores } from "eslint/config";
@@ -409,21 +1408,30 @@ import { Pool } from "pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  pool: Pool | undefined; // We must cache the pool too!
 };
 
-// 1. Create a standard Postgres connection pool
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// 1. Reuse existing pool if available, otherwise create new
+const pool = globalForPrisma.pool ?? new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  // Optimization: Limit pool size in dev to prevent exhaustion
+  max: process.env.NODE_ENV === 'development' ? 5 : 10 
+});
+
 // 2. Wrap it in the Prisma 7 adapter
 const adapter = new PrismaPg(pool);
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter, // PRISMA 7 REQUIRES THIS
+    adapter, 
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+  globalForPrisma.pool = pool; // Store the pool globally
+}
 
 --- next.config.ts ---
 import type { NextConfig } from "next";

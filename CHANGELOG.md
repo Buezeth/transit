@@ -1,5 +1,17 @@
 // CHANGELOG.md
 
+## [0.4.0] - Sprint 5: MVP Polish - 2026-03-08
+### Added
+- **Dashboard Metrics:** Added dynamic Prisma aggregations to display real-time counts for "Packages in Transit", "Active Shipments", and "Pending Deliveries" in `app/(admin)/dashboard/page.tsx`.
+- **Tariff Management:** Implemented inline editing for pricing tariffs. Admins can now update `unitPrice` and toggle `isActive` statuses directly from the settings table via `app/(admin)/dashboard/settings/components/tariff-row.tsx`.
+- **Settings Server Actions:** Added `updateTariffPrice` in `app/actions/settings.actions.ts` to handle tariff mutations.
+
+### Changed
+- **Tracking ID Generation:** Migrated tracking ID generation from the frontend (`PackageForm`) to a collision-proof, loop-validated server-side implementation (`generateUniqueTrackingId`) in `app/actions/package.actions.ts`.
+
+### Fixed
+- Hardcoded zero values on the admin dashboard overview.
+
 ## [0.3.0] - Sprint 4: Public Tracking & Delivery - 2026-03-07
 ### Added
 - **Public Landing Page:** Replaced the default Next.js template with a clean, search-focused landing page where users can enter their Tracking ID.

@@ -12,20 +12,19 @@ export function PackageForm() {
   // Form State
   const [method, setMethod] = useState<ShippingMethod>('AIR');
   const [category, setCategory] = useState<PackageCategory>('AIR_NORMAL');
-  const [measurement, setMeasurement] = useState<number>(1); // Weight (kg) or Volume (cbm)
+  const [measurement, setMeasurement] = useState<number>(1);
   const [price, setPrice] = useState<number>(0);
   const [isOverride, setIsOverride] = useState(false);
   
   // Customer Lookup State
   const [phone, setPhone] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const[customerName, setCustomerName] = useState("");
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
 
   // Constants for dropdowns
-  const AIR_CATEGORIES = ['AIR_NORMAL', 'AIR_BATTERY_LIQUID_POWDER'];
-  const SEA_CATEGORIES = ['SEA_NORMAL', 'SEA_CARTON', 'SEA_BIG_BALE', 'SEA_MACHINE', 'SEA_CHEMICAL'];
+  const AIR_CATEGORIES =['AIR_NORMAL', 'AIR_BATTERY_LIQUID_POWDER'];
+  const SEA_CATEGORIES =['SEA_NORMAL', 'SEA_CARTON', 'SEA_BIG_BALE', 'SEA_MACHINE', 'SEA_CHEMICAL'];
 
-  // Effect: Auto-calculate price when inputs change
   useEffect(() => {
     if (!isOverride) {
       const fetchPrice = async () => {
@@ -36,7 +35,6 @@ export function PackageForm() {
     }
   }, [category, measurement, isOverride]);
 
-  // Handler: Customer Phone Lookup
   const handlePhoneBlur = async () => {
     if (phone.length < 9) return;
     setIsCheckingPhone(true);
@@ -47,7 +45,6 @@ export function PackageForm() {
     setIsCheckingPhone(false);
   };
 
-  // Handler: Method Toggle (Resets category to first available)
   const handleMethodChange = (newMethod: ShippingMethod) => {
     setMethod(newMethod);
     setCategory(newMethod === 'AIR' ? 'AIR_NORMAL' : 'SEA_NORMAL');
@@ -108,9 +105,8 @@ export function PackageForm() {
           <input 
             name="trackingId"
             type="text" 
-            required
-            defaultValue={`TRK-${Math.floor(100000 + Math.random() * 900000)}`} // Simple auto-gen
-            className="w-full p-2 bg-gray-50 border border-gray-300 rounded-md font-mono text-gray-600"
+            placeholder="Leave blank to auto-generate" 
+            className="w-full p-2 bg-gray-50 border border-gray-300 rounded-md font-mono text-gray-600 focus:ring-2 focus:ring-blue-500 outline-none placeholder:font-sans"
           />
         </div>
 

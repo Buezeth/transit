@@ -6,10 +6,6 @@ import { PackageCategory, ShippingMethod, TransitStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-/**
- * Calculates price based on category and measurement.
- * Used by the frontend for real-time preview.
- */
 export async function calculateBasePrice(
   category: PackageCategory, 
   measurement: number = 1
@@ -41,27 +37,48 @@ export async function calculateBasePrice(
   };
 }
 
-/**
- * Looks up a customer by phone number.
- */
 export async function getCustomerByPhone(phone: string) {
   return await prisma.customer.findUnique({
     where: { phone }
   });
 }
 
-/**
- * Main Action: Creates a customer (if needed) and the package.
- */
+// AC-5.3: Loop until unique ID is found
+async function generateUniqueTrackingId(): Promise<string> {
+  let isUnique = false;
+  let newTrackingId = '';
+  
+  while (!isUnique) {
+    const dateStr = new Date().toISOString().slice(2, 7).replace('-', '');
+    const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    newTrackingId = `TRK-${dateStr}-${randomSuffix}`;
+    
+    const existing = await prisma.package.findUnique({
+      where: { trackingId: newTrackingId },
+      select: { id: true }
+    });
+    
+    if (!existing) {
+      isUnique = true;
+    }
+  }
+  
+  return newTrackingId;
+}
+
 export async function createPackage(formData: FormData) {
   const phone = formData.get('phone') as string;
   const name = formData.get('name') as string;
   const description = formData.get('description') as string;
-  const trackingId = formData.get('trackingId') as string;
   const category = formData.get('category') as PackageCategory;
   const method = formData.get('method') as ShippingMethod;
   
-  // Numeric parsing
+  // AC-5.3: Server-side generation execution
+  let trackingId = formData.get('trackingId') as string;
+  if (!trackingId || trackingId.trim() === '') {
+    trackingId = await generateUniqueTrackingId();
+  }
+
   const weightRaw = formData.get('weight');
   const volumeRaw = formData.get('volumeCBM');
   const priceRaw = formData.get('priceXAF');
@@ -70,9 +87,6 @@ export async function createPackage(formData: FormData) {
   const volumeCBM = volumeRaw ? parseFloat(volumeRaw.toString()) : null;
   const priceXAF = priceRaw ? parseInt(priceRaw.toString()) : 0;
   
-  // Check override/discount status
-  // We need to fetch the base rate again to determine if 'isDiscounted' should be true
-  // (i.e. if the user manually changed the price from the calculation)
   const { price: calculatedPrice, appliedRate } = await calculateBasePrice(
     category, 
     method === 'AIR' ? (weight || 0) : (volumeCBM || 1)
@@ -81,17 +95,15 @@ export async function createPackage(formData: FormData) {
   const isDiscounted = priceXAF !== calculatedPrice;
 
   try {
-    // 1. Find or Create Customer
     const customer = await prisma.customer.upsert({
       where: { phone },
-      update: { name }, // Update name if they changed it
+      update: { name },
       create: { phone, name }
     });
 
-    // 2. Create Package
     await prisma.package.create({
       data: {
-        trackingId,
+        trackingId: trackingId.toUpperCase(),
         description,
         category,
         weight,
@@ -101,7 +113,6 @@ export async function createPackage(formData: FormData) {
         isDiscounted,
         status: TransitStatus.WAREHOUSE_RECEIVED,
         customerId: customer.id,
-        // Optional: Manual shipment assignment could happen here, but we'll leave it null for now
       }
     });
 
@@ -110,18 +121,11 @@ export async function createPackage(formData: FormData) {
     throw new Error("Failed to create package");
   }
 
-
-  
-
   revalidatePath('/dashboard/packages');
-  revalidatePath('/dashboard'); // Update dashboard counters
+  revalidatePath('/dashboard'); 
   redirect('/dashboard/packages');
 }
 
-/**
- * Marks a package as Delivered and Paid.
- * This is the final step in the lifecycle.
- */
 export async function markPackageDelivered(packageId: string) {
   await prisma.package.update({
     where: { id: packageId },
@@ -133,6 +137,4 @@ export async function markPackageDelivered(packageId: string) {
 
   revalidatePath('/dashboard/packages');
   revalidatePath('/dashboard'); 
-  // We also revalidate the specific tracking page in case the user is refreshing it
-  // (We can't easily do that here without the tracking ID, but the cache strategy usually handles it)
 }
