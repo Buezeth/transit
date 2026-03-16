@@ -13,6 +13,8 @@ export async function updateTariffPrice(id: string, unitPrice: number, isActive:
     }
   });
 
-  revalidatePath('/dashboard/settings');
-  revalidatePath('/dashboard/packages/new'); // Ensure new packages use fresh pricing
+  // revalidatePath('/dashboard/settings');
+  // revalidatePath('/dashboard/packages/new'); 
+  revalidatePath('/', 'layout');
+  revalidatePath('/', 'layout');
 }

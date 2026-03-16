@@ -1,15 +1,19 @@
-// app/page.tsx
+// app/[lang]/page.tsx
 import { PackageSearch } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getDictionary } from "@/lib/dictionaries";
+import { LanguageSwitcher } from "@/app/components/language-switcher";
 
-export default function Home() {
+export default async function Home({ params }: { params: Promise<{ lang: 'en' | 'fr' }> }) {
+  const { lang } = await params;
+  const dict = await getDictionary(lang);
   
   async function trackPackage(formData: FormData) {
     'use server';
     const trackingId = formData.get('trackingId') as string;
     if (trackingId) {
-      redirect(`/track/${trackingId.trim()}`);
+      redirect(`/${lang}/track/${trackingId.trim()}`);
     }
   }
 
@@ -20,14 +24,14 @@ export default function Home() {
           <PackageSearch className="w-8 h-8" />
         </div>
         
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Transitor Track</h1>
-        <p className="text-gray-500 mb-8">Enter your tracking number to see the current status of your shipment.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{dict.home.title}</h1>
+        <p className="text-gray-500 mb-8">{dict.home.subtitle}</p>
 
         <form action={trackPackage} className="space-y-4">
           <input 
             name="trackingId"
             type="text" 
-            placeholder="TRK-..." 
+            placeholder={dict.home.placeholder} 
             className="w-full p-4 text-center text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all uppercase placeholder:normal-case"
             required
           />
@@ -35,17 +39,19 @@ export default function Home() {
             type="submit" 
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors"
           >
-            Track Package
+            {dict.home.button}
           </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-gray-100 text-sm text-gray-400">
-          <Link href="/dashboard" className="hover:text-gray-600">Admin Login</Link>
+          <Link href={`/${lang}/dashboard`} className="hover:text-gray-600">{dict.home.admin_login}</Link>
         </div>
       </div>
       
-      <p className="mt-8 text-xs text-gray-400">
-        &copy; 2026 Cameroon Logistics Services
+      <LanguageSwitcher currentLang={lang} />
+      
+      <p className="mt-6 text-xs text-gray-400">
+        {dict.home.footer}
       </p>
     </div>
   );

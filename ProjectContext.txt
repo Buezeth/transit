@@ -8,6 +8,7 @@ app/
         components/
         new/
       settings/
+        components/
       shipments/
         [id]/
           components/
@@ -102,20 +103,19 @@ export function PackageForm() {
   // Form State
   const [method, setMethod] = useState<ShippingMethod>('AIR');
   const [category, setCategory] = useState<PackageCategory>('AIR_NORMAL');
-  const [measurement, setMeasurement] = useState<number>(1); // Weight (kg) or Volume (cbm)
+  const [measurement, setMeasurement] = useState<number>(1);
   const [price, setPrice] = useState<number>(0);
   const [isOverride, setIsOverride] = useState(false);
   
   // Customer Lookup State
   const [phone, setPhone] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const[customerName, setCustomerName] = useState("");
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
 
   // Constants for dropdowns
-  const AIR_CATEGORIES = ['AIR_NORMAL', 'AIR_BATTERY_LIQUID_POWDER'];
-  const SEA_CATEGORIES = ['SEA_NORMAL', 'SEA_CARTON', 'SEA_BIG_BALE', 'SEA_MACHINE', 'SEA_CHEMICAL'];
+  const AIR_CATEGORIES =['AIR_NORMAL', 'AIR_BATTERY_LIQUID_POWDER'];
+  const SEA_CATEGORIES =['SEA_NORMAL', 'SEA_CARTON', 'SEA_BIG_BALE', 'SEA_MACHINE', 'SEA_CHEMICAL'];
 
-  // Effect: Auto-calculate price when inputs change
   useEffect(() => {
     if (!isOverride) {
       const fetchPrice = async () => {
@@ -126,7 +126,6 @@ export function PackageForm() {
     }
   }, [category, measurement, isOverride]);
 
-  // Handler: Customer Phone Lookup
   const handlePhoneBlur = async () => {
     if (phone.length < 9) return;
     setIsCheckingPhone(true);
@@ -137,7 +136,6 @@ export function PackageForm() {
     setIsCheckingPhone(false);
   };
 
-  // Handler: Method Toggle (Resets category to first available)
   const handleMethodChange = (newMethod: ShippingMethod) => {
     setMethod(newMethod);
     setCategory(newMethod === 'AIR' ? 'AIR_NORMAL' : 'SEA_NORMAL');
@@ -198,9 +196,8 @@ export function PackageForm() {
           <input 
             name="trackingId"
             type="text" 
-            required
-            defaultValue={`TRK-${Math.floor(100000 + Math.random() * 900000)}`} // Simple auto-gen
-            className="w-full p-2 bg-gray-50 border border-gray-300 rounded-md font-mono text-gray-600"
+            placeholder="Leave blank to auto-generate" 
+            className="w-full p-2 bg-gray-50 border border-gray-300 rounded-md font-mono text-gray-600 focus:ring-2 focus:ring-blue-500 outline-none placeholder:font-sans"
           />
         </div>
 
@@ -453,7 +450,23 @@ export default async function PackagesPage() {
 
 --- app/(admin)/dashboard/page.tsx ---
 // app/(admin)/dashboard/page.tsx
-export default function DashboardPage() {
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const[inTransitPackages, activeShipments, pendingDeliveries] = await Promise.all([
+    prisma.package.count({
+      where: { status: 'IN_TRANSIT' }
+    }),
+    prisma.shipment.count({
+      where: { status: { not: 'DELIVERED' } }
+    }),
+    prisma.package.count({
+      where: { status: 'READY_FOR_PICKUP' }
+    })
+  ]);
+
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Overview</h1>
@@ -461,32 +474,135 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-gray-500 text-sm font-medium">Packages in Transit</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">0</p>
+          <p className="text-3xl font-bold text-blue-600 mt-2">{inTransitPackages}</p>
         </div>
         
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-gray-500 text-sm font-medium">Active Shipments</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">0</p>
+          <p className="text-3xl font-bold text-teal-600 mt-2">{activeShipments}</p>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <h3 className="text-gray-500 text-sm font-medium">Pending Deliveries</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">0</p>
+          <p className="text-3xl font-bold text-orange-600 mt-2">{pendingDeliveries}</p>
         </div>
       </div>
     </div>
   );
 }
 
+--- app/(admin)/dashboard/settings/components/tariff-row.tsx ---
+// app/(admin)/dashboard/settings/components/tariff-row.tsx
+'use client';
+
+import { useState, useTransition } from 'react';
+import { updateTariffPrice } from '@/app/actions/settings.actions';
+import { Loader2, Edit2, Check, X } from 'lucide-react';
+import { Tariff } from '@prisma/client';
+
+export function TariffRow({ tariff }: { tariff: Tariff }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [price, setPrice] = useState(tariff.unitPrice);
+  const [isActive, setIsActive] = useState(tariff.isActive);
+  const [isPending, startTransition] = useTransition();
+
+  const handleSave = () => {
+    startTransition(async () => {
+      await updateTariffPrice(tariff.id, price, isActive);
+      setIsEditing(false);
+    });
+  };
+
+  const handleCancel = () => {
+    setPrice(tariff.unitPrice);
+    setIsActive(tariff.isActive);
+    setIsEditing(false);
+  };
+
+  return (
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="px-6 py-4 font-medium text-gray-900">{tariff.method}</td>
+      <td className="px-6 py-4">{tariff.category.replace(/_/g, ' ')}</td>
+      <td className="px-6 py-4 font-mono font-medium">
+        {isEditing ? (
+          <input
+            type="number"
+            min="0"
+            value={price}
+            onChange={(e) => setPrice(parseInt(e.target.value) || 0)}
+            disabled={isPending}
+            className="w-32 p-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        ) : (
+          tariff.unitPrice === 0 
+            ? <span className="text-orange-600">Consult Direction</span>
+            : `${tariff.unitPrice.toLocaleString('fr-CM')} FCFA`
+        )}
+      </td>
+      <td className="px-6 py-4 text-gray-500">
+        {tariff.unitType} {tariff.isFlatRate && <span className="text-xs text-gray-400 ml-1">(Flat)</span>}
+      </td>
+      <td className="px-6 py-4">
+        {isEditing ? (
+          <select
+            value={isActive ? "true" : "false"}
+            onChange={(e) => setIsActive(e.target.value === "true")}
+            disabled={isPending}
+            className="p-1.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+          >
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        ) : (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            tariff.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {tariff.isActive ? 'Active' : 'Inactive'}
+          </span>
+        )}
+      </td>
+      <td className="px-6 py-4 text-right">
+        {isEditing ? (
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={handleSave} 
+              disabled={isPending} 
+              className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors"
+              title="Save"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            </button>
+            <button 
+              onClick={handleCancel} 
+              disabled={isPending} 
+              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setIsEditing(true)} 
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            title="Edit Tariff"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 --- app/(admin)/dashboard/settings/page.tsx ---
 // app/(admin)/dashboard/settings/page.tsx
 import { prisma } from "@/lib/prisma";
+import { TariffRow } from "./components/tariff-row";
 
-// Forces Next.js to always fetch fresh data from Supabase
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  // Fetch the tariffs we just seeded!
   const tariffs = await prisma.tariff.findMany({
     orderBy:[
       { method: 'asc' },
@@ -496,7 +612,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Pricing Tariffs (July 2025)</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Pricing Tariffs</h1>
       
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full text-left text-sm text-gray-600">
@@ -507,29 +623,12 @@ export default async function SettingsPage() {
               <th className="px-6 py-4 font-medium">Price (FCFA)</th>
               <th className="px-6 py-4 font-medium">Unit</th>
               <th className="px-6 py-4 font-medium">Status</th>
+              <th className="px-6 py-4 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {tariffs.map((tariff) => (
-              <tr key={tariff.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium text-gray-900">{tariff.method}</td>
-                <td className="px-6 py-4">{tariff.category.replace(/_/g, ' ')}</td>
-                <td className="px-6 py-4 font-mono font-medium">
-                  {tariff.unitPrice === 0 
-                    ? <span className="text-orange-600">Consult Direction</span>
-                    : `${tariff.unitPrice.toLocaleString('fr-CM')} FCFA`}
-                </td>
-                <td className="px-6 py-4">
-                  {tariff.unitType} {tariff.isFlatRate && <span className="text-xs text-gray-400 ml-1">(Flat)</span>}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    tariff.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {tariff.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-              </tr>
+              <TariffRow key={tariff.id} tariff={tariff} />
             ))}
           </tbody>
         </table>
@@ -1017,10 +1116,6 @@ import { PackageCategory, ShippingMethod, TransitStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-/**
- * Calculates price based on category and measurement.
- * Used by the frontend for real-time preview.
- */
 export async function calculateBasePrice(
   category: PackageCategory, 
   measurement: number = 1
@@ -1052,27 +1147,48 @@ export async function calculateBasePrice(
   };
 }
 
-/**
- * Looks up a customer by phone number.
- */
 export async function getCustomerByPhone(phone: string) {
   return await prisma.customer.findUnique({
     where: { phone }
   });
 }
 
-/**
- * Main Action: Creates a customer (if needed) and the package.
- */
+// AC-5.3: Loop until unique ID is found
+async function generateUniqueTrackingId(): Promise<string> {
+  let isUnique = false;
+  let newTrackingId = '';
+  
+  while (!isUnique) {
+    const dateStr = new Date().toISOString().slice(2, 7).replace('-', '');
+    const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    newTrackingId = `TRK-${dateStr}-${randomSuffix}`;
+    
+    const existing = await prisma.package.findUnique({
+      where: { trackingId: newTrackingId },
+      select: { id: true }
+    });
+    
+    if (!existing) {
+      isUnique = true;
+    }
+  }
+  
+  return newTrackingId;
+}
+
 export async function createPackage(formData: FormData) {
   const phone = formData.get('phone') as string;
   const name = formData.get('name') as string;
   const description = formData.get('description') as string;
-  const trackingId = formData.get('trackingId') as string;
   const category = formData.get('category') as PackageCategory;
   const method = formData.get('method') as ShippingMethod;
   
-  // Numeric parsing
+  // AC-5.3: Server-side generation execution
+  let trackingId = formData.get('trackingId') as string;
+  if (!trackingId || trackingId.trim() === '') {
+    trackingId = await generateUniqueTrackingId();
+  }
+
   const weightRaw = formData.get('weight');
   const volumeRaw = formData.get('volumeCBM');
   const priceRaw = formData.get('priceXAF');
@@ -1081,9 +1197,6 @@ export async function createPackage(formData: FormData) {
   const volumeCBM = volumeRaw ? parseFloat(volumeRaw.toString()) : null;
   const priceXAF = priceRaw ? parseInt(priceRaw.toString()) : 0;
   
-  // Check override/discount status
-  // We need to fetch the base rate again to determine if 'isDiscounted' should be true
-  // (i.e. if the user manually changed the price from the calculation)
   const { price: calculatedPrice, appliedRate } = await calculateBasePrice(
     category, 
     method === 'AIR' ? (weight || 0) : (volumeCBM || 1)
@@ -1092,17 +1205,15 @@ export async function createPackage(formData: FormData) {
   const isDiscounted = priceXAF !== calculatedPrice;
 
   try {
-    // 1. Find or Create Customer
     const customer = await prisma.customer.upsert({
       where: { phone },
-      update: { name }, // Update name if they changed it
+      update: { name },
       create: { phone, name }
     });
 
-    // 2. Create Package
     await prisma.package.create({
       data: {
-        trackingId,
+        trackingId: trackingId.toUpperCase(),
         description,
         category,
         weight,
@@ -1112,7 +1223,6 @@ export async function createPackage(formData: FormData) {
         isDiscounted,
         status: TransitStatus.WAREHOUSE_RECEIVED,
         customerId: customer.id,
-        // Optional: Manual shipment assignment could happen here, but we'll leave it null for now
       }
     });
 
@@ -1121,18 +1231,11 @@ export async function createPackage(formData: FormData) {
     throw new Error("Failed to create package");
   }
 
-
-  
-
   revalidatePath('/dashboard/packages');
-  revalidatePath('/dashboard'); // Update dashboard counters
+  revalidatePath('/dashboard'); 
   redirect('/dashboard/packages');
 }
 
-/**
- * Marks a package as Delivered and Paid.
- * This is the final step in the lifecycle.
- */
 export async function markPackageDelivered(packageId: string) {
   await prisma.package.update({
     where: { id: packageId },
@@ -1144,8 +1247,26 @@ export async function markPackageDelivered(packageId: string) {
 
   revalidatePath('/dashboard/packages');
   revalidatePath('/dashboard'); 
-  // We also revalidate the specific tracking page in case the user is refreshing it
-  // (We can't easily do that here without the tracking ID, but the cache strategy usually handles it)
+}
+
+--- app/actions/settings.actions.ts ---
+// app/actions/settings.actions.ts
+'use server';
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+export async function updateTariffPrice(id: string, unitPrice: number, isActive: boolean) {
+  await prisma.tariff.update({
+    where: { id },
+    data: { 
+      unitPrice,
+      isActive 
+    }
+  });
+
+  revalidatePath('/dashboard/settings');
+  revalidatePath('/dashboard/packages/new'); // Ensure new packages use fresh pricing
 }
 
 --- app/actions/shipment.actions.ts ---
@@ -1346,6 +1467,18 @@ export default function Home() {
 
 --- CHANGELOG.md ---
 // CHANGELOG.md
+
+## [0.4.0] - Sprint 5: MVP Polish - 2026-03-08
+### Added
+- **Dashboard Metrics:** Added dynamic Prisma aggregations to display real-time counts for "Packages in Transit", "Active Shipments", and "Pending Deliveries" in `app/(admin)/dashboard/page.tsx`.
+- **Tariff Management:** Implemented inline editing for pricing tariffs. Admins can now update `unitPrice` and toggle `isActive` statuses directly from the settings table via `app/(admin)/dashboard/settings/components/tariff-row.tsx`.
+- **Settings Server Actions:** Added `updateTariffPrice` in `app/actions/settings.actions.ts` to handle tariff mutations.
+
+### Changed
+- **Tracking ID Generation:** Migrated tracking ID generation from the frontend (`PackageForm`) to a collision-proof, loop-validated server-side implementation (`generateUniqueTrackingId`) in `app/actions/package.actions.ts`.
+
+### Fixed
+- Hardcoded zero values on the admin dashboard overview.
 
 ## [0.3.0] - Sprint 4: Public Tracking & Delivery - 2026-03-07
 ### Added

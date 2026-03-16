@@ -121,8 +121,9 @@ export async function createPackage(formData: FormData) {
     throw new Error("Failed to create package");
   }
 
-  revalidatePath('/dashboard/packages');
-  revalidatePath('/dashboard'); 
+  // revalidatePath('/dashboard/packages');
+  revalidatePath('/', 'layout');
+  revalidatePath('/', 'layout');
   redirect('/dashboard/packages');
 }
 
@@ -135,6 +136,8 @@ export async function markPackageDelivered(packageId: string) {
     }
   });
 
-  revalidatePath('/dashboard/packages');
-  revalidatePath('/dashboard'); 
+  // revalidatePath('/dashboard/packages');
+  // revalidatePath('/dashboard'); 
+  revalidatePath('/', 'layout');
+  revalidatePath('/', 'layout');
 }

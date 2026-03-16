@@ -1,0 +1,75 @@
+{
+  "home": {
+    "title": "Suivi Transitor",
+    "subtitle": "Entrez votre numéro de suivi pour voir le statut actuel de votre expédition.",
+    "placeholder": "TRK-...",
+    "button": "Suivre le Colis",
+    "admin_login": "Connexion Admin",
+    "footer": "© 2026 Services Logistiques du Cameroun"
+  },
+  "sidebar": { "dashboard": "Tableau de Bord", "packages": "Colis", "shipments": "Expéditions", "settings": "Paramètres" },
+  "dashboard": { "overview": "Aperçu", "inTransit": "Colis en Transit", "activeShipments": "Expéditions Actives", "pendingDeliveries": "Livraisons en Attente" },
+  "packages": {
+    "title": "Colis",
+    "receiveBtn": "Recevoir un Colis",
+    "table": { "trackingId": "N° de Suivi", "customer": "Client", "desc": "Description", "category": "Catégorie", "status": "Statut", "price": "Prix" },
+    "empty": "Aucun colis trouvé. Recevez votre premier colis."
+  },
+  "packageForm": {
+    "title": "Recevoir un Nouveau Colis",
+    "customerDetails": "Détails du Client",
+    "phone": "Numéro de Téléphone",
+    "fullName": "Nom Complet",
+    "packageInfo": "Informations du Colis",
+    "trackingId": "N° de Suivi (Interne)",
+    "trackingPlaceholder": "Laissez vide pour générer",
+    "descPlaceholder": "ex: 2 Cartons de Chaussures",
+    "air": "Fret Aérien",
+    "sea": "Fret Maritime",
+    "weight": "Poids (KG)",
+    "volume": "Volume (CBM)",
+    "pricing": "Tarification",
+    "override": "Dérogation de la Direction",
+    "overrideWarn": "Tarification personnalisée activée",
+    "totalPrice": "Prix Total (FCFA)",
+    "submit": "Enregistrer le Colis"
+  },
+  "shipments": {
+    "title": "Expéditions",
+    "newAir": "Nouvelle Expédition Aérienne",
+    "newSea": "Nouvelle Expédition Maritime",
+    "created": "Créé le",
+    "packages": "Colis",
+    "manage": "Gérer",
+    "empty": "Aucune expédition active. Créez-en une pour commencer.",
+    "freight": "Fret",
+    "status": "Statut de l'Expédition",
+    "manifest": "Manifeste",
+    "total": "Total",
+    "units": "unités",
+    "manifestEmpty": "Le manifeste est vide.",
+    "unassigned": "Colis Non Assignés",
+    "unassignedEmpty": "Aucun colis non assigné trouvé.",
+    "warning": "* Changer le statut mettra à jour tous les colis de cette expédition."
+  },
+  "settings": {
+    "title": "Grille Tarifaire",
+    "table": { "transport": "Transport", "category": "Catégorie", "price": "Prix (FCFA)", "unit": "Unité", "status": "Statut", "actions": "Actions" },
+    "consult": "Consulter la Direction",
+    "active": "Actif",
+    "inactive": "Inactif"
+  },
+  "tracking": {
+    "title": "Résultats du Suivi",
+    "notFound": "Numéro de suivi introuvable.",
+    "goBack": "Retour",
+    "currentStatus": "Statut Actuel",
+    "shipmentRef": "Réf. Expédition",
+    "desc": "Description",
+    "weightVol": "Poids / Vol",
+    "totalDue": "Montant Total Dû",
+    "paid": "PAYÉ",
+    "pending": "PAIEMENT EN ATTENTE",
+    "steps": { "received": "Reçu", "inTransit": "En Transit", "customs": "Douane", "ready": "Prêt", "delivered": "Livré" }
+  }
+}

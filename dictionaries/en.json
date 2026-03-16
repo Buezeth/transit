@@ -1,0 +1,75 @@
+{
+  "home": {
+    "title": "Transitor Track",
+    "subtitle": "Enter your tracking number to see the current status of your shipment.",
+    "placeholder": "TRK-...",
+    "button": "Track Package",
+    "admin_login": "Admin Login",
+    "footer": "© 2026 Cameroon Logistics Services"
+  },
+  "sidebar": { "dashboard": "Dashboard", "packages": "Packages", "shipments": "Shipments", "settings": "Settings" },
+  "dashboard": { "overview": "Overview", "inTransit": "Packages in Transit", "activeShipments": "Active Shipments", "pendingDeliveries": "Pending Deliveries" },
+  "packages": {
+    "title": "Packages",
+    "receiveBtn": "Receive Package",
+    "table": { "trackingId": "Tracking ID", "customer": "Customer", "desc": "Description", "category": "Category", "status": "Status", "price": "Price" },
+    "empty": "No packages found. Receive your first one."
+  },
+  "packageForm": {
+    "title": "Receive New Package",
+    "customerDetails": "Customer Details",
+    "phone": "Phone Number",
+    "fullName": "Full Name",
+    "packageInfo": "Package Info",
+    "trackingId": "Tracking ID (Internal)",
+    "trackingPlaceholder": "Leave blank to auto-generate",
+    "descPlaceholder": "e.g. 2 Cartons of Shoes",
+    "air": "Air Freight",
+    "sea": "Sea Freight",
+    "weight": "Weight (KG)",
+    "volume": "Volume (CBM)",
+    "pricing": "Pricing",
+    "override": "Management Override",
+    "overrideWarn": "Custom pricing enabled",
+    "totalPrice": "Total Price (FCFA)",
+    "submit": "Receive Package"
+  },
+  "shipments": {
+    "title": "Shipments",
+    "newAir": "New Air Shipment",
+    "newSea": "New Sea Shipment",
+    "created": "Created",
+    "packages": "Packages",
+    "manage": "Manage",
+    "empty": "No active shipments. Create one to get started.",
+    "freight": "Freight",
+    "status": "Shipment Status",
+    "manifest": "Manifest",
+    "total": "Total",
+    "units": "units",
+    "manifestEmpty": "Manifest is empty.",
+    "unassigned": "Unassigned Packages",
+    "unassignedEmpty": "No unassigned packages found.",
+    "warning": "* Changing status will update all packages in this shipment."
+  },
+  "settings": {
+    "title": "Pricing Tariffs",
+    "table": { "transport": "Transport", "category": "Category", "price": "Price (FCFA)", "unit": "Unit", "status": "Status", "actions": "Actions" },
+    "consult": "Consult Direction",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "tracking": {
+    "title": "Tracking Results",
+    "notFound": "Tracking ID not found.",
+    "goBack": "Go Back",
+    "currentStatus": "Current Status",
+    "shipmentRef": "Shipment Ref",
+    "desc": "Description",
+    "weightVol": "Weight / Vol",
+    "totalDue": "Total Amount Due",
+    "paid": "PAID",
+    "pending": "PAYMENT PENDING",
+    "steps": { "received": "Received", "inTransit": "In Transit", "customs": "Customs", "ready": "Ready", "delivered": "Delivered" }
+  }
+}

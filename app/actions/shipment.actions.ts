@@ -24,7 +24,8 @@ export async function createShipment(formData: FormData) {
     }
   });
 
-  revalidatePath('/dashboard/shipments');
+  // revalidatePath('/dashboard/shipments');
+  revalidatePath('/', 'layout');
 }
 
 /**
@@ -45,7 +46,8 @@ export async function updateShipmentStatus(shipmentId: string, newStatus: Transi
     })
   ]);
 
-  revalidatePath(`/dashboard/shipments/${shipmentId}`);
+  // revalidatePath(`/dashboard/shipments/${shipmentId}`);
+  revalidatePath('/', 'layout');
 }
 
 /**
@@ -56,7 +58,8 @@ export async function assignPackageToShipment(shipmentId: string, packageId: str
     where: { id: packageId },
     data: { shipmentId }
   });
-  revalidatePath(`/dashboard/shipments/${shipmentId}`);
+  // revalidatePath(`/dashboard/shipments/${shipmentId}`);
+  revalidatePath('/', 'layout');
 }
 
 /**
@@ -67,5 +70,6 @@ export async function removePackageFromShipment(packageId: string, shipmentId: s
     where: { id: packageId },
     data: { shipmentId: null }
   });
-  revalidatePath(`/dashboard/shipments/${shipmentId}`);
+  // revalidatePath(`/dashboard/shipments/${shipmentId}`);
+  revalidatePath('/', 'layout');
 }
